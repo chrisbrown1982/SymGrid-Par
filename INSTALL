@@ -1,0 +1,252 @@
+ -*- outline -*-
+This document describes the installation process for SymGrid-Par v0.3.3.
+
+The preferred way to install SymGrid-Par is to download 
+http://www.cs.st-andrews.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/install.sh
+and to install everything from sources
+# install.sh -s 
+
+The discussion below explains the steps taken by the script.
+
+* DEPENDENCIES:
+
+A recent Eden compiler is needed: >=6.8 on 32-bit machines and >=6.12
+on 64-bit machines. The Eden compiler is a modified version of the
+Glasgow Haskell Compiler (GHC), supporting distributed memory
+parallelism. For visualising the parallel execution, the Pablo and
+EdenTV tools are needed.
+. Home:     http://www.mathematik.uni-marburg.de/~eden/
+
+The HaXmL package for GHC/Eden is needed.
+. Download: ftp://ftp.cs.york.ac.uk/pub/haskell/HaXml/
+
+To run programs in parallel, you need PVM (Parallel Virtual Machine)
+or an implementation of MPI (Message Passing Interface), e.g.
+MPICH-2 or LAM-MPI. This document assumes that you use PVM.
+PVM allows you to configure a virtual machine, consisting of
+several machines in a cluster or to use the different cores that
+you have on a multi-core machine.
+. Home:     http://www.csm.ornl.gov/pvm/
+. Download: http://www.netlib.org/pvm3/pvm3.4.6.tgz
+
+One or more computer algebra systems that support SCSCP. This document
+describes the interface to GAP v4r4. In particular, you need the
+SCSCP package for GAP:  
+. Home:     http://www.gap-system.org/
+. Download: http://www.gap-system.org/Download/formats.html#tbz2
+
+The above packages are directly available from:
+. Download: http://www.cs.st-andrews.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/
+
+
+* BUILDING:
+
+Common GNU tools are needed when building from source. In particular,
+a recent gcc (>=4.1.3) and binutils (>=2.17.50) are needed for compilation.
+For installation etc GNU autoconf, configure, make, and sed are needed.
+
+First, decide on a location where to install SymGrid-Par. The directory
+should contain the usual directory hierarchy, at least:
+ bin/  include/  lib/  man/  share/
+
+Set the environment variable SGP_ROOT to this dir:
+# export SGP_ROOT=<installation of SymGrid-Par>
+
+You should pick up programs from the bin/ subdir:
+# export PATH=$SGP_ROOT/bin:$PATH
+
+Now, go to a working directory for building all necessary software. If you
+build from source you should have plenty of disk space available. 
+
+# export BUILD_ROOT=<working dir for building all packages for SymGrid-Par>
+# cd $BUILD_ROOT
+
+For convenience, I use this environment variable
+# export URL=http://www.cs.st-and.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/
+
+** Step 1 (OPTIONAL): Support for tracing and visualisation
+
+If you want to use visualisation tools for the parallel execution of your
+programs, you have to install the following two packages from source:
+
+First set PABLO_ROOT to the place where to install these packages, eg:
+# export PABLO_ROOT=$SGP_ROOT 
+
+Now get the packages and install them:
+# wget $URL/PabloStuffEdenTV.tgz
+# tar xfz PabloStuffEdenTV.tgz 
+# cd SDDFBatchConv/
+# make install
+# cd ../TraceLibraryNoFortran/
+# ./configure --prefix=$SGP_ROOT 
+# make install
+
+Now you should see the following files in your bin dir:
+# ls $SGP_ROOT/bin
+AdjustTime      ConvertPICL         FileStats         MergeTwoFiles  SDDFmerge
+BatchConverter  ExpandField         FindSddfError     Sample
+ConvertAIMS     ExtractFieldValues  MergePabloTraces  SDDFconverter
+
+** Step 2: Install PVM or MPI
+
+You need a library for message passing between machines in a
+network or a Grid. The SymGrid-Par middleware supports both
+PVM and MPI. This section describes how to install PVM.
+
+*** From Binaries
+
+If you use a binary distribution of PVM, which is available
+for most Linux distributions, then all you need to do is
+to set the environment variable PVM_ROOT. E.g. if you have
+/usr/bin/pvm3 on your system then set
+# export PVM_ROOT=/usr
+
+*** From Source
+
+If you don't have PVM installed already, do the following:
+# cd $BUILD_ROOT
+# wget $URL/pvm3.4.6.tgz
+# tar xfz pvm3.4.6.tgz
+# cd pvm3
+# export PVM_ROOT=`pwd`
+# export PVM_ARCH="`$PVM_ROOT/lib/pvmgetarch `"
+# make
+# export PATH=$PATH:`pwd`/console/$PVM_ARCH
+
+Note, that all users, who use this PVM installation have to 
+have write permission on $PVM_ROOT/bin/$PVM_ARCH.
+
+** Step 3: Installing a GHC/Eden compiler
+
+*** From Binaries:
+
+The easiest way of installing the compiler is to download a binary
+distribution for your platform. Currently, 32-bit and 64-bit binaries
+for common Linux distributions are supported. Check the main 
+download URL for more binaries.
+
+Download a binary distribution, matching your architecture,
+and install it (we assume i386-unknown-linux, ie. 32-bit):
+# cd $BUILD_ROOT
+# wget $URL/ghc-6.8.3.20080718-eden-i386-unknown-linux.tar.bz2
+# tar xfj ghc-6.8.3.20080718-eden-i386-unknown-linux.tar.bz2
+# cd ghc-6.8.3.20080718-eden
+# ./configure --prefix=$SGP_ROOT
+# make install
+
+Don't worry about error messages when trying to install in docs/
+
+*** From Sources:
+
+To build the Eden compiler from sources, you need GHC 6.8.3, 
+or slightly earlier. You can download the matching versions
+from $URL or from the GHC web pages.
+# cd $BUILD_ROOT
+# wget $URL/ghc-6.8.3-i386-unknown-linux.tar.bz2
+# tar xfj ghc-6.8.3-i386-unknown-linux.tar.bz2
+# cd ghc-6.8.3
+# ./configure --prefix=$SGP_ROOT
+# make install
+
+Now, download the sources of the Eden compiler, and build it:
+# cd $BUILD_ROOT
+# wget $URL/eden-6.8.3.20080719.tgz
+# tar xfz eden-6.8.3.20080719.tgz
+# cd eden-6.8.3
+# sh boot
+# ./configure --prefix=$SGP_ROOT --with-ghc=ghc-6.8.3
+# make
+# make install
+
+*** Testing
+
+You now have an Eden, and thus also a Haskell compiler.
+You can test it with:
+# echo "main = putStrLn \"Hello World\"" > hello.hs
+# ghc-6.8.3.20080718-eden hello.hs
+# ./a.out
+Hello world
+
+*** HaXmL Package:
+
+You may need to do this:
+# if [ ! -f $SGP_ROOT/lib/ghc-6.8.3.20080718-eden/extra-gcc-opts ] ;  then echo " -fwrapv -mno-omit-leaf-frame-pointer -fno-unit-at-a-time " >  $SGP_ROOT/lib/ghc-6.8.3.20080718-eden/extra-gcc-opts ; fi
+
+To build SymGrid-Par from sources, you need the HaXmL 
+package, for handling the XML encodings of data types.
+# cd $BUILD_ROOT
+# wget $URL/HaXml-1.13.3.tar.gz
+# tar xfz HaXml-1.13.3.tar.gz
+# cd HaXml-1.13.3
+# runhaskell Setup.hs configure --prefix=$SGP_ROOT/lib/ghc-6.8.3.20080718-eden
+# runhaskell Setup.hs build
+# runhaskell Setup.hs install
+
+Your ghc should now see the package, so try
+# ghc-pkg list
+# ghc-pkg describe HaXml-1.13.3
+
+** Step 4: Install the main SymGrid-Par infrastructure:
+
+*** From Binaries
+
+For some Linux-based architectures you can download binary bundles and
+install them directly.
+# cd $BUILD_ROOT
+# wget $URL/SymGrid-Par-v0.3-i386-unknown-linux.tar.gz
+# tar xfz SymGrid-Par-v0.3-i386-unknown-linux.tar.gz
+# cd SymGrid-Par-v0.3-<architecture>
+# install -c bin/CoordinationServer_pp bin/testClient $SGP_ROOT/bin
+# export PATH=$PATH:`pwd`/console/$PVM_ARCH
+
+*** From Sources
+
+If you have been through Steps 1-3, you have all necessary software 
+to build SymGrid-Par from sources. 
+# cd $BUILD_ROOT
+# wget $URL/SymGrid-Par-v0.3.tar.gz
+# tar xfz SymGrid-Par-v0.3.tar.gz
+# cd SymGrid-Par-v0.3
+
+Check the first section in the paths.mk file to adjust to your configuration.
+In particular, set the path to the Eden compiler EDEN_GHC.
+After Steps 1-3 no changes should be needed in paths.mk
+
+Now build and install with:
+# make
+# make install
+
+Alternatively, you can install a minimal set of files like this:
+# install -c SCSCP/CoordinationServer_pp SCSCP/testClient $SGP_ROOT/bin
+# install -c SCSCP/GAP/*.g $SGP_ROOT/lib
+
+** Step 5 (OPTIONAL): Install tools for view parallelism traces
+
+Download the Eden Trace Viewer:
+# cd $BUILD_ROOT
+# wget $URL/EdenTV-2.0b.tgz
+# tar xvfz EdenTV-2.0b.tgz 
+# cd EdenTV-2.0b
+You can launch it from the command-line like this
+# java -jar EdenTV-2.0b.jar
+
+Create a minimal wrapper script:
+# echo '#!/bin/sh' > $SGP_ROOT/bin/edenTV
+# echo "java -jar EdenTV-2.0b.jar" >> $SGP_ROOT/bin/edenTV
+# chmod a+x $SGP_ROOT/bin/edenTV
+
+To view a trace, run an Eden-compiled program with +RTS -qP
+This will generate .txt and .bin files, containing the traces.
+To view them, just call
+# edenTV
+in the same directory and select one of the trace files.
+
+** Step 6: Install your favourite computer algebra system
+
+Refer to the documentation of the computer algebra system
+that you want to use as a server for the infrastructure.
+
+* RUNNING:
+
+Check the USE document for how to run simple test programs.
+

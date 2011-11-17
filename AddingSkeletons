@@ -1,0 +1,145 @@
+In this document we show you the basic steps required to add a new skeleton to 
+SymGrid-Par. SymGrid-Par itself is made up of three layers:
+
+* The Client: typically a CA system such as GAP;
+* The Coordination layer: a Haskell middleware that coordinates the
+  parallelism between the clients and the servers. The coordination layer
+  contains the CA skeletons.
+* The Server: a CA system that performs the CA computations.
+
+Adding a new skeleton to SymGrid-Par requires us to modify (typically) the
+following files:
+
+* testClient.hs:         a Haskell implementation acting as the client to the 
+                         server;
+* CoordinationServer.hs: The CoordServer, implementing Haskell;
+* CA_Skeletons.hs:       The Computation Algebra skeletons, currently 
+                         implemented in Haskell;
+* BaseServices.hs:       A library of 'Web_Services' available for the 
+                         CoordServer;
+* sgp_server.g:          A Gap implementation of various mathematical 
+                         computations, typically called from the skeletons. 
+
+In this document we will illustrate how we added the Orbit skeleton to 
+SymGrid-Par.
+
+First, we add our skeleton to CA_Skeletons.hs: the Haskell implementation is 
+simply copied over, with an additional helper function:
+
+parOrbitSCSCP :: [CAName] -> [ [Int] ] -> Int -> [ [Int] ]
+parOrbitSCSCP gens init s = orbitPar 2 (orbitOnList s)
+(map call2 gens) init
+
+
+The interesting thing here is the use of call2 which acts as a marshaller 
+between the Skeleton and the client. In this case, we pass in a list of 
+generators: functions taking two arguments (a setSize threshold and an element 
+to transform). call2 transforms the list of gens in SCSCP format into Haskell 
+functions. We use call2 here instead of call1, as we are dealing with a function
+ of araty 2, otherwise we could use call0 or call1.
+
+The next step is to modify the Coordination Server so that it references the 
+parOrbitSCSCP in the Skeletons module.
+
+parOrbitOM :: [OMObj] -> Either String OMObj
+parOrbitOM [f, xs, set] =
+ let  f' :: [String]
+  f' = fromOM f
+  xs' :: [[Int]]
+  xs' = fromOM xs
+  set' :: Int
+  set' = fromOM set
+  z :: [[Int]]
+  z = (parOrbitSCSCP
+   (map (\x -> (Left ("scscp_transient_1", x))) f') xs' set')
+ in Right (toOM z)
+
+Here we simply marshall the arguments to the skeleton from the OpenMath format,
+ as supplied by the client. Mapping a transformation to convert to a CAName 
+type, the list of generator functions (these are web-services). In addition to 
+supplying this interface (does a function have an interface?), we also modify 
+the table of available services so that the Orbit skeleton is listed as 
+available:
+
+, (scscp_CS_Orbit , parOrbitOM )
+
+This is all that needs doing in the Coordination server. So far we have added 
+our Skeleton and made it available as a service. The rest needs to be done at 
+the client and server ends. We will deal with the client primarily, as this 
+will lead into the definition of the web-services later.
+
+In testClient.hs we add a function that allows the user to call our skeleton over 
+SGP:
+
+runOrbit :: [CAName] -> [[Int]] -> Int -> IO ()
+runOrbit ys xs setSize = do
+ putStrLn $ "Running Orbit " ++ ( show xs ) ++ " (the workers call Gap-side functions"
+ let fname = scscp_CS_Orbit
+ let  args = [toOM (map toOM (getFunFromCA ys)), toOM (map toOM xs), toOM setSize]
+ let  resOM = callSCSCP fname args
+ let  x = (fromOM resOM) :: [[Int]]
+ putStrLn $ "Result: " ++ (show x)
+ where
+ getFunFromCA :: [CAName] -> [String]  
+ getFunFromCA [] = []
+ getFunFromCA ( (Left (cd_f, f)):xs) = f:getFunFromCA xs
+
+All we need to do here is to wrap up the arguments to the skeleton in OpenMath 
+formats, so that they can be marshalled to the skeleton via SCSCP. The result 
+of the skeleton is then captured, and displayed via stdout.
+
+The last thing to do is to register our worker functions as web-services. 
+These web-services will be performed at the CA_Server end, in GAP. All we have 
+to do is to modify sgp_server.g and define out worker definitions:
+
+Fib1:=function(s, x)
+return (((Fibonacci ((x mod 20) + 10)) + x) mod s);
+end;
+
+Fib2:=function(s, x)
+return (((Fibonacci ((x mod 10) + 20)) + x) mod s);
+end;
+
+Fib3:=function(s, x)
+return (((Fibonacci ((x mod 19) + 10)) + x-1) mod s);
+end;
+
+InstallSCSCPprocedure( "WS_Fib1", Fib1, "Fibonacci modulo 20", 2,2);
+InstallSCSCPprocedure( "WS_Fib2", Fib2, "Fibonacci modulo 10", 2,2);
+InstallSCSCPprocedure( "WS_Fib3", Fib3, "Fibonacci modulo 19", 2,2);
+
+We have made these worker web-services available as WS_Fib1, WS_Fib2 and WS_Fib3 
+respectively. We will have to pass these web-service names as arguments for the 
+generators to the skeleton at the client end.
+
+The very last thing we do is make sure the CoordServer can find these installed 
+web-services. So, finally, we modify BaseServices.hs making the namespace of the 
+web-services:
+
+scscp_WS_Fib1 = Left ("scscp_transient_1", "WS_Fib1")
+scscp_WS_Fib2 = Left ("scscp_transient_1", "WS_Fib2")
+scscp_WS_Fib3 = Left ("scscp_transient_1", "WS_Fib3")
+
+scscp_CS_Orbit = Left ("scscp_transient_1", "CS_Orbit")
+
+CS_Orbit is a service available on the CoordService (our Orbit), and we may use 
+this to call the Skeleton from GAP.
+
+Now we can run the Orbit:
+
+[chrisb@ladybank02 SCSCP]$ testClient 12321 parOrbit 100
+starting up client, opening port 12321
+Running Orbit [[1]] (the workers call Gap-side functions
+Result: [[1],[90],[55],[47],[89],[57],[80],[44],[65],[72],[70],[27],[75],[18],
+[45],[11],[35],[21],[12],[56],[30],[83],[48],[96],[0],[26],[85],[24],[29],[10]
+,[28],[60],[41],[67],[64],[23],[95],[22],[49],[16],[40],[66],[32],[79],[59],
+[54],[13],[19],[84],[92],[33],[58],[93],[39],[8],[15],[25],[74],[87],[73],[31],
+[99],[20],[78],[9],[94],[53],[5],[43],[46],[88],[2],[69],[61],[52],[3],[50],
+[68],[91],[42],[77],[38],[62],[4],[76],[14],[98],[7],[63],[37],[36],[86],[6],
+[81],[71],[82],[17],[34]]
+[chrisb@ladybank02 SCSCP]$
+
+For more information on developing skeletons for SymGrid-Par, please visit the
+SymGrid-Par developer's blog, at:
+
+http://haskellresearchblog.blogspot.com/2010/07/adding-skeleton-to-symgrid-par.html

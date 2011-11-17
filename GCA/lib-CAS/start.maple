@@ -1,0 +1,233 @@
+# -----------------------------------------------------------------------------
+# Haskell-Maple interface
+# 
+# (c) 2000, Wolfgang Schreiner <Wolfgang.Schreiner@risc.uni-linz.ac.at>
+# http://www.risc.uni-linz.ac.at/people/schreine
+# 
+# $Id: start.maple,v 1.1 2000/11/08 14:21:05 schreine Exp $
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# server protocol
+#
+# 0. send "ready"
+# 1. receive name of file for error messages
+# 2. sequence of "receive -> send" pairs
+#
+# in  text               -> m exp         maple exp from external format
+# out exp                -> m text        external format from maple exp
+# fun n text exp1...expn -> m exp         function call with single result
+# lst n text exp1...expn -> m exp1...expm call with list of results
+# terminate                               end of execution
+#
+# negative m value indicates execution error
+# in this case 'lst' returns a single line denoting the error
+#
+# -----------------------------------------------------------------------------
+
+# protocol identifier
+`dist/version` := "HaskellMaple 2.0":
+`dist/versionLength` := length(`dist/version`):
+
+# -----------------------------------------------------------------------------
+# read line of input, check for errors
+# -----------------------------------------------------------------------------
+`dist/readline` := proc()
+  local
+    len, line, line0;
+
+  line := readline();
+  if line = 0 then
+    ERROR("unexpected end of input stream");
+  fi;
+
+  # may be prepended by version key 
+  # to avoid line lengths that are multiples of 1022
+  if SearchText(`dist/version`, line, 1..`dist/versionLength`) <> 0 then
+    line0 := line[1+`dist/versionLength`..length(line)];
+  else
+    line0 := line;
+  fi;
+
+  # Maple V.5 reads from stdin at most 1022 characters per line
+  # thus we join subsequent truncated lines
+  len := length(line);
+  while len = 1022 do
+    line := readline();    
+    if line = 0 then
+      ERROR("unexpected end of input stream");
+    fi;
+    len := length(line);
+    line0 := cat(line0, line);
+  od;
+  RETURN (line0);
+end:
+
+# -----------------------------------------------------------------------------
+# parse and print functions
+# -----------------------------------------------------------------------------
+`dist/parse` := proc()
+  # text -> internal
+  RETURN (parse(`dist/readline`()));
+end:
+`dist/print` := proc(value)
+  # internal -> text
+  fprintf("/tmp/debug", "print: %a\n", eval(value)); fflush("/tmp/debug");
+  printf("%a\n", eval(value));
+end:
+`dist/read` := proc()
+  # exp -> internal
+  local str;
+  str := `dist/readline`();
+  fprintf("/tmp/debug", "read: %s\n", str); fflush("/tmp/debug");
+  fprintf("/tmp/debug", "parse: %a\n", sscanf(str, "%m")[1]); fflush("/tmp/debug");
+  RETURN (sscanf(str, "%m")[1]);
+end:
+`dist/write` := proc(value)
+  # internal -> exp
+  fprintf("/tmp/debug", "write: %m\n", eval(value)); fflush("/tmp/debug");
+  fprintf("/tmp/debug", "writf: %a\n", eval(value)); fflush("/tmp/debug");
+  printf("%m\n", eval(value));
+  fprintf("/tmp/debug", "writg: %a\n", eval(value)); fflush("/tmp/debug");
+  # Ghc-Maple Version 0.2
+  # NOTE:
+  # eval(value) is equivalent to eval(value,2) [Maple Ref]
+  # So, a way to get a sort of Whrf is
+  # eval('''G''',2) 
+  #  'G'
+  # We may not to be entirely interested on full evaluation (a sort of eager )
+  # but in delayed evaluation (a sort of lazyness)
+end:
+
+# -----------------------------------------------------------------------------
+# server loop
+# -----------------------------------------------------------------------------
+`dist/server` := proc(file)
+  local
+    line, value, fun, n, i, t, atable;
+
+  # server loop
+  while true do
+
+    # message key
+    line := readline();
+fprintf("/tmp/debug", "line: %s\n", line); fflush("/tmp/debug");
+
+    # text to expression
+    if line = "in" then
+      value := traperror(`dist/parse`());
+      if value = lasterror then
+        `dist/print`(-1);
+        `dist/print`(value);
+      else
+        `dist/print`(0);
+        `dist/write`(value);
+      fi;
+      fflush(default);
+
+    # expression to text
+    elif line = "out" then
+      value := `dist/read`();
+      `dist/print`(0);
+      `dist/print`(value);
+      fflush(default);
+
+    # evaluate function and write result
+    elif line = "fun" then
+      line := readline();
+      n := sscanf(line, "%d")[1];
+fprintf("/tmp/debug", "n:%d\n", n); fflush("/tmp/debug");
+      line := readline();
+      fun := sscanf(cat("`", line , "`"), "%a")[1];
+fprintf("/tmp/debug", "%a\n", fun); fflush("/tmp/debug");
+      for i from 1 to n do
+        atable[i] := `dist/read`();
+      od;
+      value := traperror(fun(seq(eval(atable[t]), t=1..n)));
+      if value = lasterror then
+        `dist/print`(-1);
+        `dist/print`(value);
+      else
+        `dist/print`(0);
+        `dist/write`(value);
+      fi;
+      fflush(default);
+
+    # evaluate function and write list of results
+    elif line = "lst" then
+      line := readline();
+      n := sscanf(line, "%d")[1];
+      line := readline();
+      fun := sscanf(cat("`", line , "`"), "%a")[1];
+fprintf("/tmp/debug", "%a\n", fun); fflush("/tmp/debug");
+      for i from 1 to n do
+        atable[i] := `dist/read`();
+      od;
+      value := traperror(fun(seq(eval(atable[t]), t=1..n)));
+      if value = lasterror then
+        `dist/print`(-1);
+        `dist/print`(value);
+      else
+        n := traperror(nops(value));
+        if n = lasterror then
+          `dist/print`(-1);
+          `dist/print`(n);
+        else
+          `dist/print`(n);
+fprintf("/tmp/debug", "%d\n", n); fflush("/tmp/debug");
+          for i from 1 to n do
+fprintf("/tmp/debug", "%d:\n", i); fflush("/tmp/debug");
+            `dist/write`(value[i]);
+          od;
+fprintf("/tmp/debug", "e\n"); fflush("/tmp/debug");
+        fi;
+      fi;
+fprintf("/tmp/debug", "flush\n"); fflush("/tmp/debug");
+      fflush(default);
+
+    # terminate execution
+    elif line = "terminate" then
+      quit;
+
+    # unknown message key
+    else
+      fprintf(file, "maple process error: invalid message key (%s)\n", line);
+      fclose(file);
+      RETURN (-1);
+    fi;
+
+fprintf("/tmp/debug", "wait\n"); fflush("/tmp/debug");
+  od;
+end:
+
+# -----------------------------------------------------------------------------
+# main program
+# -----------------------------------------------------------------------------
+`dist/main` := proc()
+  local file, result;
+
+  # signal readiness
+  writeline(default, "ready");
+  fflush(default);
+  
+  # name of file for error messages
+  file := readline();
+
+  # execute server loop and catch errors
+  result = traperror(`dist/server`(file));
+
+  # check for error
+  if result = lasterror then
+    fprintf(file, "maple process error: trapped error (%s)", file);
+    fclose(file);
+  fi;
+end:
+
+# -----------------------------------------------------------------------------
+# start execution
+# -----------------------------------------------------------------------------
+`dist/main`():
+
+# -----------------------------------------------------------------------------
+# $Id: start.maple,v 1.1 2000/11/08 14:21:05 schreine Exp $
+# -----------------------------------------------------------------------------

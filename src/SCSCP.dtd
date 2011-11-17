@@ -1,0 +1,75 @@
+<!-- Reduced DTD for OpenMath, suitable to 
+     decribe all kinds of SCSCP messages, leaving 
+     out the computation data (described as "DUMMY").
+
+     Purpose: generate (and modify!) Haskell source code 
+     to parse and fill an appropriate data structure.
+
+     Author: Jost Berthold, University of St.Andrews, UK
+     (c) 12/2008, SCIEnce project.
+
+ -->
+
+<!ELEMENT OMOBJ (OMATTR)>
+<!-- not true for mocking server 
+  call_ID missing from error messages
+    => OMATTR missing, directly OMA inside OMOBJ
+<!ELEMENT OMOBJ (OMATTR | OMA )>
+-->
+<!-- and the kant server is adding loads of boring xml garbage:
+xmlns:OM=\"http://www.openmath.org/OpenMath\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.openmath.org/OpenMath http://www.openmath.org/standard/om20-2004-06-30/openmath2.xsd\" version=\"2.0\"> -->
+<!ATTLIST OMOBJ xmlns:OM CDATA #IMPLIED
+	        xmlns:xsi CDATA #IMPLIED
+	        xsi:schemaLocation CDATA #IMPLIED
+                version CDATA #IMPLIED
+	        >
+
+<!ELEMENT OMATTR (OMATP?,OMA)>
+<!ELEMENT OMS EMPTY>
+<!ATTLIST OMS cd   CDATA #REQUIRED
+	      name CDATA #REQUIRED >
+<!ELEMENT OMATP (((OMS,OMSTR)|(OMS,OMI))*)>
+
+<!-- caution: OMR/OME must come before the all-purpose EATALL -->
+<!ELEMENT OMA ((OMS,OMR) | (OMS,OME) | (OMS,EATALL) )>
+<!ELEMENT OME (OMS,OMSTR)>
+<!-- not true for mocking server 
+  (IMHO against spec.!!!)
+  server returns OMA OMS (list) OMSTR OMSTR OMSTR OMSTR for invalid name
+<!ELEMENT OME (OMS, ANY )> (!!!)
+-->
+<!ELEMENT OMSTR ( #PCDATA )>
+<!ELEMENT OMI ( #PCDATA )>
+<!ELEMENT OMR EMPTY>
+<!ATTLIST OMR xref CDATA #REQUIRED>
+
+<!-- this is wrong, but will be edited away later -->
+<!ELEMENT EATALL ( ANY* ) >
+
+
+<!--
+{- the SCSCP messages always nest like this:
+   <OMOBJ>
+    <OMATTR>
+     <OMATP>
+     -attributes- (sequence of paired OMS and OMsomething)
+     </OMATP>
+     <OMA>
+      <OMS cd="scscp1" name=-whatItWas- />
+      -needed content for what it was-
+     </OMA>
+    </OMATP>
+   </OMATTR>
+  </OMOBJ>
+
+-whatItWas-            -needed/supplied content
+"procedure call"       <OMA><OMS cd="SCSCP_transient_identifier"
+                                 name=-nameOfTheRegisteredProcedure- />
+                            -arguments-</OMA>
+"procedure_completed"  -theResult- (always one)
+                       can be anything, including a reference 
+		       <OMR xref="blabla" />
+"procedure terminated" <OME><OMS cd="scscp1" name=-theErrorClass-/>
+                            <OMSTR>-errorText-</OMSTR></OME>
+-}
+-->

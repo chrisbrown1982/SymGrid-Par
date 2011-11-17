@@ -1,0 +1,34 @@
+
+		    The SymGrid-Par Infrastructure
+
+
+We  are  pleased to  announce  the  release of the  SymGrid-Par v0.3.3
+middleware for parallel  symbolic computation.  This prototype version
+of  SymGrid-Par adds  support for  the SCSCP  protocol and  provides a
+coordination server to orchestrate  parallel execution.  It comes with
+an  implementation of  several  general skeletons  and with  examples,
+using  these skeletons  to  realise parallelism.  This version  should
+mainly be of interest for middleware developers.
+
+The  role of  SymGrid-Par is  to orchestrate  parallel  processes that
+cooperate  in  solving one  symbolic  computation  problem.  This  may
+involve  the cooperation  of  several computer  algebra  systems in  a
+wide-area, Grid-style  network.  Central  to its design  are languages
+that provide a high level of  parallelism and that are easy to use for
+the users of computer algebra systems.  We achieve this by building on
+parallel  extensions of the  functional programming  language Haskell,
+defining  patterns  of   parallel  computation  (skeletons)  in  these
+languages,  and provide  these skeletons  via well  defined interfaces
+directly in the computer algebra system.
+
+Links:
+======
+
+Download: http://www.cs.st-and.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/
+SCIEnce project: http://www.symbolic-computation.org/The_SCIEnce_Project
+
+
+-- 
+  The SCIEnce project 
+  http://www.symbolic-computation.org/The_SCIEnce_Project
+  January 2011

@@ -1,0 +1,331 @@
+ -*- outline -*-
+
+* How to use the SymGrid-Par middleware
+
+This document gives examples on how to use SymGrid-Par
+to run computer algebra routines in parallel. Eventually,
+this should evolve into a proper user's guide.
+
+For the impatient:
+Execute the commands in lines starting with ´>´ to run an example.
+
+An overview of the SymGrid-Par infrastructure is given
+in this extended abstract:
+http://www.cs.st-andrews.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/demo.pdf
+and these slides:
+http://www.cs.st-andrews.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/sgp-demo.pdf
+
+The role of SymGrid-Par is to orchestrate parallel processes that
+cooperate in solving one symbolic computation problem.  This may
+involve the cooperation of several computer algebra system in a
+wide-area, Grid-style network.  Central to its design are languages
+that provide a high level of parallelism and that are easy to use for
+the users of computer algebra systems. We achieve this by building on
+parallel extensions of the functional programming language Haskell,
+defining patterns of parallel computation (skeletons) in these
+languages, and provide these skeletons via well defined interfaces
+directly in the computer algebra system.
+
+This document focuses on how to use the SCSCP-based version
+of SymGrid-Par, which is supported from version 0.3 onwards.
+
+SymGrid-Par is being developed as part of the SCIEnce
+(Symbolic Computation Infrastructure for Europe) project:
+http://www.symbolic-computation.org/The_SCIEnce_Project
+
+* Setup
+
+The top-level admin tool for configuring SymGrid-Par is: sgp_admin.sh
+
+Go to the root of the SymGrid-Par installation, ie. where install.sh
+was run, and initialise the setup with
+
+> source sgp_init.sh
+
+Launch several computer algebra servers as specified eg. in the sample-sgprc file in ${SGP_ROOT}/etc:
+
+> sgp_admin.sh launch ${SGP_ROOT}/etc/sample-sgprc
+
+In a separate window launch the Coordination server (CS):
+
+> sgp_admin.sh start ${SGP_ROOT}/etc/sample-sgprc
+
+or
+
+> CoordinationServer_pp --sgprc  ${SGP_ROOT}/etc/sample-sgprc 12321 +RTS -qp2
+
+You should at least see these messages:
+> ==== Starting parallel execution on 2 processors ...
+
+Then, in a separate window, run one of the clients below.
+
+The default sgprc file is taken from $SGPRC
+The number of processors is defined by $SGP_NOPES or the -qp flag to the CS
+
+The entries in the file $SGPRC file have the form
+
+<hostname> <portnum> <CAsys>
+
+Alternatively, to monitor SCSCP activity, edit SCSCPserverPort in
+/scratch/hwloidl/txx/SGP_v0.3.2_BUILDS/gap4r4/pkg/scscp/config.g
+and launch each server with
+> gap.sh sgp_server.g
+in a separate window.
+
+To shut down all services do
+> sgp_admin.sh kill
+To shut down the Coordination Server re-start pvm using the shortcuts
+> ph
+> pq
+or
+> pvm
+> > halt
+> pvm
+> > quit
+
+* Commandline examples
+
+The computation can be driven from the command-line using testClient
+or from within a GAP client (see below)
+
+** Our hello world: Fibonacci:
+
+We assume running CA servers (sgp_admin.sh launc) and Coordination server
+(sgp_admin start) on port 12321.
+
+This does a sequential Fibonacci computation on the GAP server.
+The coordination server only forwards the data and returns the result.
+
+> testClient 12321 fib 11
+
+and you should see:
+# starting up client, opening port 12321
+# Calling fib with arguments [11]
+# Running fib 11 (GAP-side)...
+# Result: 89
+
+This example simply passes the argument to a GAP-side service
+that implements the Fibonacci function and returns the result.
+No real coordination is necessary in this case.
+
+** Small example
+
+Here is a small example of running a program to test the installation.
+
+Computes sumEuler [1..40].
+This performs SCSCP calls for each function call of the Euler totient function.
+Useful for monitoring SCSCP activities on the server side, but, of course, slow.
+
+> testClient 12321 sumEuler 40
+
+** Polynomial multiplication (sequential)
+
+This uses the Karatsuba algorithm for performing (sequential) polynomial
+multiplication on 2 random polynomials of degree 10.
+
+> testClient 12321 kara 10
+
+** Skeletons: parMapFold
+
+A range of skeletons is supported by the Coordination Server
+(see Deliverable 5.8 for details).
+
+This example computes sumEuler over the list [87,88,89], with 0 as neutral element.
+The function arguments, here WS_Phi and WS_Plus, must be services exported
+by an SCSCP enabled server.
+WS_Phi is the Euler totient function, ie. it returns the number of integers
+relative prime to the given integer.
+WS_Plus is integer addition.
+
+> testClient 12321 parMapFold WS_Phi WS_Plus 0 87 88 89
+
+Componentwise addition of the lists [1,2,3] and [99,98,97].
+
+> testClient 12321 parZipWith WS_Plus 1 2 3 99 98 97
+
+Orbit skeleton for finite fields
+
+> testClient 12321 parOrbitFin 
+
+** Timings
+
+For a 1 processor execution, launch the Coordination Server like this:
+(or set SGP_NOPES=1 and do an sgp_admin.sh start)
+
+> CoordinationServer_pp --sgprc ${SGP_ROOT}/etc/sample-sgprc +RTS -qp1
+
+Then compute sumEuler [1..8000] in parallel.
+
+> time testClient 12321 SumEuler 8000 2000
+
+# starting up client, opening port 12321
+# Calling SumEuler with arguments [8000,2000]
+# Launching parallel sumEulerParSCSCP 8000 2000, coordinated by the server ...
+# Result: 19455782
+#
+# real	0m9.859s
+# user	0m0.001s
+# sys	0m0.006s
+
+For a 2 processor execution, launch the Coordination Server like this:
+
+> CoordinationServer_pp --sgprc ${SGP_ROOT}/etc/sample-sgprc +RTS -qp2
+
+Then compute sumEuler [1..8000] in parallel.
+
+> time testClient 12321 SumEuler 8000 2000
+
+# starting up client, opening port 12321
+# Calling SumEuler with arguments [8000,2000]
+# Launching parallel sumEulerParSCSCP 8000 2000, coordinated by the server ...
+# Result: 19455782
+#
+# real	0m5.905s
+# user	0m0.003s
+# sys	0m0.004s
+
+* GAP client
+
+From the root of the SymGrid-Par installation do
+To start the gap shell do
+
+> cd SGP_v0.3.2/lib
+> gap.sh sgp_client.g
+
+and run the following examples.
+
+** Fibonacci function
+
+> EvaluateBySCSCP("CS_Fib", [11], "localhost", 12321);
+
+** Calling a sequential service
+
+Passing through of integer factorisation.
+
+> Run1("WS_FactorsInt", 18);
+
+** Skeletons
+
+sumEuler as a fold-of-map
+
+> ParMapFold("WS_Phi", "WS_Plus", 0, zs);
+
+Componentwise addition of two predefined lists.
+
+> ParZipWith("WS_Plus", xs, ys);
+
+Orbit Skeleton for permutations of finite fields.
+
+> ParOrbit(["WS_Fin1", "WS_Fin2"], [l], 0);
+
+** Parallel sumEuler
+
+Parallel sumEuler [1..8000] with block size of 2000. See
+http://www.cs.st-andrews.ac.uk/~hwloidl/SCIEnce/SymGrid-Par/v0.3/demo.pdf
+for details.
+
+> EvaluateBySCSCP("CS_SumEuler", [8000, 2000], "localhost", 12321).object;
+
+* Misc
+
+** Other ways of starting the CA servers
+
+The way how to start the CA server depends on the CA.
+For GAP, the following ways of starting it are useful.
+
+Launch two instances of GAP, running as SCSCP server, on
+explicit ports, and write the output to temporary files.
+# gapd.sh -p 26133 -t $SGP_ROOT/lib/sgp_server.g
+# gapd.sh -p 26134 -t $SGP_ROOT/lib/sgp_server.g
+
+If you want to monitor the SCSCP activity of each server 
+in a separate window proceed as follows. 
+Launch an editor with 
+# emacs $BUILD_ROOT/gap4r4/pkg/scscp/config.g
+and set the value assigned to SCSCPserverPort to 26133. Then
+# cd $SGP_ROOT/lib
+# gap.sh sgp_server.g
+Edit the value assigned to SCSCPserverPort to 26134, and in a
+new window do:
+# cd $SGP_ROOT/lib
+# gap.sh sgp_server.g
+
+** Configuring PVM
+
+To use parallelism, you must run PVM (Parallel Virtual Machine):
+# pvm
+# # quit
+On a multi-core you can immediately quit; to set up a cluster do
+# # add <machine>
+and check the configuration with
+# # config
+before you 
+# # quit
+
+** Options to the Coordination Server
+
+To get a list of options do
+# CoordinationServer_pp --help
+
+To enable additional messages from the coordination server use:
+# CoordinationServer_pp --verbose ...
+To get version information about the coordination server do:
+# CoordinationServer_pp --version
+
+** Default setup
+
+By default the Coordination Server assumes two GAP SCSCP servers
+listening to ports 26133 and 26134.
+To modify this edit $GAPROOT/pkg/scscp/config.g and launch:
+# gap.sh $SGP_ROOT/lib/sgp_server.g
+# gap.sh $SGP_ROOT/lib/sgp_server.g
+
+** More Timings
+
+In another window, start the Coordination Server with one processor:
+# CoordinationServer_pp 12321 +RTS -qp1
+
+# time testClient 12321 sumEulerClassic 22000 23000
+> starting up client, opening port 12321
+> Calling sumEulerClassic with arguments [22000,23000]
+> Launching parallel sumEulerClassic on  [1,22000] and [1,23000] in parallel ...
+> Result: 307924788
+
+real	3m7.478s
+user	0m0.001s
+sys	0m0.004s
+
+Reset PVM by doing
+# pvm
+# # halt
+# pvm
+# quit
+
+Now, in another window, start the Coordination Server with two processors:
+# CoordinationServer_pp 12321 +RTS -qp2
+
+# time testClient 12321 sumEulerClassic 22000 23000
+> starting up client, opening port 12321
+> Calling sumEulerClassic with arguments [22000,23000]
+> Launching parallel sumEulerClassic on  [1,22000] and [1,23000] in parallel ...
+> Result: 307924788
+
+real	1m35.664s
+user	0m0.000s
+sys	0m0.004s
+
+For this simple test program we achieve a speed-up of about 2 on 2 processors.
+
+** map-skeleton: Resultant:
+
+The following example uses a parallel fold-of-map skeleton to calculate the
+resultants of random polynomials of a given degree, and then sum up the result.
+#  testClient 12321 parMapFold WS_Res WS_Plus 0 92 93 94
+> starting up client, opening port 12321
+> Launching runParMapFold with map service "WS_Res" and fold service "WS_Plus" on [92,93,94], i.e. running each application of the service in parallel, coordinated by the server ...
+> Result: 642285030
+
+** List of examples from testClient.hs
+
+See the header of testClient.hs in SymGrid-Par/SCSCP for a list of supported examples.
+

@@ -1,0 +1,18 @@
+//################################### parMap ###################################
+parMap := proc(funName, myList)
+	local listLength, i, runCommand, myArgs, finalResults;
+begin
+	listLength := nops(myList);
+	myArgs := map(myList, (x) -> "\"".expr2text(x)."\" ");
+	runCommand := "/u1/staff/ceeatia/GHC-GAP-0.2/CAG/mupadSkeleton/parMap/parMap_pp ";
+	// Print(runCommand,"\"".funName."\"", " ",myArgs," +RTS -qN", String(listLength));
+	myArgs := runCommand."\"".funName."\" "._concat(op(myArgs))." +RTS -qN".listLength;
+	// Print(myArgs);
+	if traperror((finalResults := shell::system(myArgs))) <> 0 then
+		error("executing command ".myArgs);
+	end_if;
+	// finalResults := List(finalResults,OMString);
+	return(map(text2expr(finalResults),text2expr));
+end_proc:
+//######################################################################################
+null():

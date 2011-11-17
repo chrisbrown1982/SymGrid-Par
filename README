@@ -1,0 +1,32 @@
+README for SymGridPar v0.3.3
+
+This package contains the latest release of SymGrid-Par coordination software.
+It is currently version 0.3.3.
+
+The following contains some brief installation instructions to setup
+and install a working version of SymGridPar.
+
+Before you begin, you will need the following software installed and
+available in your working PATH:
+
+	- ghc-eden version 6.12.3
+        - pvm or mpi
+        - gap (tested with 4.4.12) with scscp package installed
+
+
+To build SymGrid-Par:
+
+	- source sgp_init.sh
+        - make 
+        - make install
+
+
+The binaries will be installed into bin/
+
+To use and test SymGrid-Par see USE.
+
+January 2011.
+
+
+
+
